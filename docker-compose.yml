@@ -1,4 +1,20 @@
 services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: healthcost
+      POSTGRES_USER: healthcost
+      POSTGRES_PASSWORD: healthcost
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U healthcost -d healthcost"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
   portal-api:
     image: python:3.11-slim
     working_dir: /app/backend
@@ -12,17 +28,29 @@ services:
     image: python:3.11-slim
     working_dir: /app/services/dataset-collector
     command: sh -c "pip install -r requirements.txt && uvicorn app.main:app --host 0.0.0.0 --port 8010"
+    environment:
+      DATABASE_URL: postgresql+psycopg://healthcost:healthcost@postgres:5432/healthcost
     ports:
       - "8010:8010"
     volumes:
       - .:/app
+    depends_on:
+      postgres:
+        condition: service_healthy
 
   trainer:
     image: python:3.11-slim
     working_dir: /app/services/trainer
     command: sh -c "pip install -r requirements.txt && uvicorn app.main:app --host 0.0.0.0 --port 8020"
+    environment:
+      DATABASE_URL: postgresql+psycopg://healthcost:healthcost@postgres:5432/healthcost
     ports:
       - "8020:8020"
     volumes:
       - .:/app
+    depends_on:
+      postgres:
+        condition: service_healthy
 
+volumes:
+  postgres-data:

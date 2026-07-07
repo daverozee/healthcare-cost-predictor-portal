@@ -1,7 +1,9 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException
 from pydantic import BaseModel, Field
+from sqlalchemy.orm import Session
 
-from app.registry import registry
+from app.db import get_session, init_database
+from app.repository import repository
 from healthcost_shared import ModelArtifact, TrainingRun
 
 
@@ -19,46 +21,50 @@ app = FastAPI(
 )
 
 
+@app.on_event("startup")
+def startup() -> None:
+    init_database()
+
+
 @app.get("/health")
 def health():
     return {"status": "ok", "service": "trainer"}
 
 
 @app.post("/training-runs", response_model=TrainingRun)
-def queue_training_run(request: QueueTrainingRunRequest):
-    return registry.queue_run(**request.model_dump())
+def queue_training_run(request: QueueTrainingRunRequest, session: Session = Depends(get_session)):
+    return repository.queue_run(session, **request.model_dump())
 
 
 @app.get("/training-runs", response_model=list[TrainingRun])
-def training_runs():
-    return registry.list_runs()
+def training_runs(session: Session = Depends(get_session)):
+    return repository.list_runs(session)
 
 
 @app.get("/training-runs/{run_id}", response_model=TrainingRun)
-def training_run(run_id: str):
+def training_run(run_id: str, session: Session = Depends(get_session)):
     try:
-        return registry.get_run(run_id)
+        return repository.get_run(session, run_id)
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @app.post("/training-runs/{run_id}/run-now", response_model=TrainingRun)
-def run_training_now(run_id: str):
+def run_training_now(run_id: str, session: Session = Depends(get_session)):
     try:
-        return registry.run_training_now(run_id)
+        return repository.run_training_now(session, run_id)
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @app.get("/model-artifacts", response_model=list[ModelArtifact])
-def model_artifacts():
-    return registry.list_artifacts()
+def model_artifacts(session: Session = Depends(get_session)):
+    return repository.list_artifacts(session)
 
 
 @app.post("/model-artifacts/{artifact_id}/promote", response_model=ModelArtifact)
-def promote_artifact(artifact_id: str):
+def promote_artifact(artifact_id: str, session: Session = Depends(get_session)):
     try:
-        return registry.promote_artifact(artifact_id)
+        return repository.promote_artifact(session, artifact_id)
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
-

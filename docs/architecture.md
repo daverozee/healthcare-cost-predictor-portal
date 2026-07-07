@@ -63,7 +63,7 @@ Shared contracts should stay small. Do not put business logic here.
 
 The long-term production setup should use PostgreSQL for metadata and object storage for large files.
 
-Local development can start with SQLite plus local folders.
+Local development also uses PostgreSQL. Large raw files, normalized datasets, and model artifacts should live in local/object storage, not in Postgres.
 
 Metadata:
 
@@ -152,10 +152,8 @@ flowchart LR
 
 ## Near-Term Milestones
 
-1. Add dataset catalog API with local SQLite persistence.
-2. Add source registration for CMS provider and outpatient files.
-3. Add a normalizer that emits one canonical training table.
-4. Add trainer API that can run a PyTorch job for one procedure group.
-5. Add model registry endpoint so the portal knows the active model.
-6. Replace placeholder estimates with model-backed estimates.
-
+1. Add source registration for CMS provider and outpatient files.
+2. Add a normalizer that emits one canonical training table.
+3. Add trainer API that can run a PyTorch job for one procedure group.
+4. Add model registry endpoint so the portal knows the active model.
+5. Replace placeholder estimates with model-backed estimates.

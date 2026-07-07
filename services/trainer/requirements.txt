@@ -1,7 +1,8 @@
 fastapi>=0.111
 uvicorn[standard]>=0.30
 pydantic>=2.7
+sqlalchemy>=2.0
+psycopg[binary]>=3.2
 pytest>=8.2
 torch>=2.0
 -e ../../packages/shared
-

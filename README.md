@@ -43,6 +43,18 @@ http://127.0.0.1:8000/docs
 
 Run each service in its own terminal.
 
+Start PostgreSQL first. The included Compose file is the easiest path:
+
+```powershell
+docker compose up postgres
+```
+
+For manual service runs, use:
+
+```powershell
+$env:DATABASE_URL="postgresql+psycopg://healthcost:healthcost@localhost:5432/healthcost"
+```
+
 Portal API:
 
 ```powershell
@@ -81,7 +93,7 @@ http://127.0.0.1:8010/docs
 http://127.0.0.1:8020/docs
 ```
 
-Docker Compose is included as a future convenience path:
+Docker Compose can run all services together:
 
 ```powershell
 docker compose up

@@ -5,7 +5,7 @@ Owns PyTorch training run orchestration and model artifact registration.
 Current version:
 
 - FastAPI service
-- In-memory training run registry
+- PostgreSQL-backed training run registry
 - Simulated training execution
 - Model artifact metadata
 
@@ -17,3 +17,8 @@ Future version:
 - Artifact storage
 - Promotion workflow for active models
 
+Expected environment:
+
+```text
+DATABASE_URL=postgresql+psycopg://healthcost:healthcost@localhost:5432/healthcost
+```
