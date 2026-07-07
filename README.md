@@ -7,11 +7,16 @@ This repository starts with:
 - A FastAPI backend for cost estimates
 - A static portal UI served by FastAPI
 - A transparent placeholder estimator
+- A long-term microservice architecture scaffold
+- A dataset collector service scaffold
+- A PyTorch trainer service scaffold
 - A roadmap for replacing the placeholder with public price-transparency data and ML models
 
 The current estimator is not a production pricing model. It is a working product scaffold that lets us build the user experience, API contract, data pipeline, and evaluation workflow before connecting large CMS, hospital, and payer datasets.
 
 ## Run Locally
+
+### Portal Only
 
 ```powershell
 cd backend
@@ -34,11 +39,69 @@ API docs:
 http://127.0.0.1:8000/docs
 ```
 
+### Microservices
+
+Run each service in its own terminal.
+
+Portal API:
+
+```powershell
+cd backend
+.\.venv\Scripts\Activate.ps1
+uvicorn app.main:app --reload --port 8000
+```
+
+Dataset collector:
+
+```powershell
+cd services\dataset-collector
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+pip install -r requirements.txt
+uvicorn app.main:app --reload --port 8010
+```
+
+Trainer:
+
+```powershell
+cd services\trainer
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+pip install -r requirements.txt
+uvicorn app.main:app --reload --port 8020
+```
+
+Service docs:
+
+```text
+http://127.0.0.1:8000/docs
+http://127.0.0.1:8010/docs
+http://127.0.0.1:8020/docs
+```
+
+Docker Compose is included as a future convenience path:
+
+```powershell
+docker compose up
+```
+
 ## Test
 
 ```powershell
 cd backend
 .\.venv\Scripts\Activate.ps1
+pytest
+```
+
+Collector and trainer tests:
+
+```powershell
+cd services\dataset-collector
+pytest
+
+cd ..\trainer
 pytest
 ```
 
@@ -87,6 +150,8 @@ Candidate sources:
 
 See [docs/data-roadmap.md](docs/data-roadmap.md).
 
+See [docs/architecture.md](docs/architecture.md) for the service architecture, dataset lifecycle, and training-run lifecycle.
+
 ## Product Direction
 
 The site should estimate ranges, not pretend false precision.
@@ -103,4 +168,3 @@ Useful output:
 ## Privacy
 
 The project should avoid collecting protected health information. For consumer-facing use, the first version should work with anonymous inputs such as procedure, ZIP code, payer type, and site of care.
-
