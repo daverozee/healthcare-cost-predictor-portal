@@ -16,3 +16,9 @@ def test_data_source_record_round_trip():
 
     assert restored == source
 
+
+def test_registerable_source_can_include_download_homepage():
+    source = DEFAULT_SOURCES[-1]
+
+    assert source.homepage_url is not None
+    assert source.source_type == "hospital_price_transparency"

@@ -9,6 +9,7 @@ class DatasetStatus(StrEnum):
     REGISTERED = "registered"
     DOWNLOADING = "downloading"
     DOWNLOADED = "downloaded"
+    FAILED = "failed"
     NORMALIZED = "normalized"
     VALIDATED = "validated"
     TRAINABLE = "trainable"
@@ -70,4 +71,3 @@ class ModelArtifact(BaseModel):
     metrics_uri: str | None = None
     is_active: bool = False
     created_at: datetime
-

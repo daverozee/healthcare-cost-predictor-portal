@@ -86,11 +86,13 @@ Object/file storage:
 
 ```text
 registered -> downloading -> downloaded -> normalized -> validated -> trainable -> archived
+                         \-> failed
 ```
 
 Rules:
 
 - Every downloaded file gets a checksum.
+- Raw files are stored outside Postgres and referenced by URI.
 - Every normalized dataset gets a schema version.
 - Training runs reference immutable dataset versions.
 - If source data changes, create a new dataset version.

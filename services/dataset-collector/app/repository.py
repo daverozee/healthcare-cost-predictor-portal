@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+from typing import Any
 from uuid import uuid4
 
 from sqlalchemy import select
@@ -97,9 +98,15 @@ class DatasetCatalogRepository:
         normalized_uri: str | None = None,
         checksum_sha256: str | None = None,
         row_count: int | None = None,
+        source_url: str | None = None,
+        metadata: dict[str, Any] | None = None,
     ) -> DatasetVersion:
         if session.get(DataSourceRecord, source_id) is None:
             raise KeyError(f"Unknown source_id: {source_id}")
+
+        metadata_json = dict(metadata or {})
+        if source_url:
+            metadata_json["source_url"] = source_url
 
         record = DatasetVersionRecord(
             id=f"ds_{uuid4().hex[:12]}",
@@ -111,7 +118,7 @@ class DatasetCatalogRepository:
             checksum_sha256=checksum_sha256,
             row_count=row_count,
             created_at=datetime.now(timezone.utc),
-            metadata_json={},
+            metadata_json=metadata_json,
         )
         session.add(record)
         session.commit()
@@ -126,6 +133,56 @@ class DatasetCatalogRepository:
         records = session.scalars(statement).all()
         return [version_from_record(record) for record in records]
 
+    def get_version(self, session: Session, dataset_version_id: str) -> DatasetVersion:
+        record = session.get(DatasetVersionRecord, dataset_version_id)
+        if record is None:
+            raise KeyError(f"Unknown dataset_version_id: {dataset_version_id}")
+        return version_from_record(record)
+
+    def update_status(
+        self,
+        session: Session,
+        dataset_version_id: str,
+        status: DatasetStatus,
+        metadata_patch: dict[str, Any] | None = None,
+    ) -> DatasetVersion:
+        record = session.get(DatasetVersionRecord, dataset_version_id)
+        if record is None:
+            raise KeyError(f"Unknown dataset_version_id: {dataset_version_id}")
+        record.status = status.value
+        if metadata_patch:
+            record.metadata_json = {**(record.metadata_json or {}), **metadata_patch}
+        session.commit()
+        session.refresh(record)
+        return version_from_record(record)
+
+    def record_download(
+        self,
+        session: Session,
+        dataset_version_id: str,
+        raw_uri: str,
+        checksum_sha256: str,
+        byte_count: int,
+        source_url: str,
+        downloaded_at: datetime,
+    ) -> DatasetVersion:
+        record = session.get(DatasetVersionRecord, dataset_version_id)
+        if record is None:
+            raise KeyError(f"Unknown dataset_version_id: {dataset_version_id}")
+
+        record.status = DatasetStatus.DOWNLOADED.value
+        record.raw_uri = raw_uri
+        record.checksum_sha256 = checksum_sha256
+        record.metadata_json = {
+            **(record.metadata_json or {}),
+            "source_url": source_url,
+            "byte_count": byte_count,
+            "downloaded_at": downloaded_at.isoformat(),
+        }
+        session.commit()
+        session.refresh(record)
+        return version_from_record(record)
+
     def mark_trainable(self, session: Session, dataset_version_id: str) -> DatasetVersion:
         record = session.get(DatasetVersionRecord, dataset_version_id)
         if record is None:
@@ -137,4 +194,3 @@ class DatasetCatalogRepository:
 
 
 repository = DatasetCatalogRepository()
-

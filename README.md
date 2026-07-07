@@ -8,7 +8,7 @@ This repository starts with:
 - A static portal UI served by FastAPI
 - A transparent placeholder estimator
 - A long-term microservice architecture scaffold
-- A dataset collector service scaffold
+- A PostgreSQL-backed dataset collector service with raw download/checksum tracking
 - A PyTorch trainer service scaffold
 - A roadmap for replacing the placeholder with public price-transparency data and ML models
 
