@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Healthcare Cost Predictor</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <section class="estimator">
+        <div class="workspace">
+          <header class="topbar">
+            <div>
+              <p class="eyebrow">Healthcare Cost Predictor</p>
+              <h1>Estimate a care cost range</h1>
+            </div>
+            <div class="status" id="apiStatus">Checking API</div>
+          </header>
+
+          <form id="estimateForm" class="form-grid">
+            <label>
+              Procedure
+              <select id="procedure" name="procedure_id" required></select>
+            </label>
+
+            <label>
+              ZIP code
+              <input id="zipCode" name="zip_code" inputmode="numeric" value="90210" maxlength="10" required />
+            </label>
+
+            <label>
+              Coverage
+              <select id="payerType" name="payer_type">
+                <option value="commercial">Commercial insurance</option>
+                <option value="medicare">Medicare</option>
+                <option value="cash">Cash / self-pay</option>
+                <option value="unknown">I do not know</option>
+              </select>
+            </label>
+
+            <label>
+              Site of care
+              <select id="siteOfCare" name="site_of_care">
+                <option value="hospital_outpatient">Hospital outpatient</option>
+                <option value="ambulatory_surgery_center">Ambulatory surgery center</option>
+                <option value="independent_imaging_center">Independent imaging center</option>
+                <option value="office">Doctor office</option>
+                <option value="emergency_department">Emergency department</option>
+                <option value="unknown">I do not know</option>
+              </select>
+            </label>
+
+            <fieldset class="segmented">
+              <legend>Case complexity</legend>
+              <label><input type="radio" name="complexity" value="low" /> Low</label>
+              <label><input type="radio" name="complexity" value="typical" checked /> Typical</label>
+              <label><input type="radio" name="complexity" value="elevated" /> Elevated</label>
+              <label><input type="radio" name="complexity" value="high" /> High</label>
+            </fieldset>
+
+            <button type="submit">Estimate</button>
+          </form>
+        </div>
+
+        <aside class="result-panel">
+          <div class="result-header">
+            <p class="eyebrow">Estimated Range</p>
+            <span id="confidenceBadge" class="badge">Awaiting input</span>
+          </div>
+
+          <div class="range">
+            <div>
+              <span>Low</span>
+              <strong id="lowEstimate">$0</strong>
+            </div>
+            <div>
+              <span>Point</span>
+              <strong id="pointEstimate">$0</strong>
+            </div>
+            <div>
+              <span>High</span>
+              <strong id="highEstimate">$0</strong>
+            </div>
+          </div>
+
+          <div class="meter">
+            <div id="meterFill"></div>
+          </div>
+
+          <section>
+            <h2 id="procedureName">Choose a procedure</h2>
+            <p id="resultNotes">The first estimate will appear here.</p>
+          </section>
+
+          <dl class="factor-list" id="factorList"></dl>
+          <ul class="caveats" id="caveats"></ul>
+        </aside>
+      </section>
+    </main>
+
+    <script src="/static/app.js"></script>
+  </body>
+</html>
+
