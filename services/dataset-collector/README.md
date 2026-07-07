@@ -12,6 +12,7 @@ Current version:
 - Raw file download endpoint
 - SHA-256 checksum calculation
 - Dataset status transitions
+- Deterministic collection agent for starter CMS dataset proposals
 
 Future version:
 
@@ -32,6 +33,38 @@ COLLECTOR_STORAGE_DIR=data/raw
 3. Download the dataset version.
 4. The service stores the raw file, calculates checksum/byte count, and marks the version `downloaded`.
 5. A future normalizer marks it `normalized`, `validated`, then `trainable`.
+
+## Agent Workflow
+
+The collection agent proposes datasets. It does not download by itself.
+
+Create an agent run:
+
+```http
+POST /agent-runs
+```
+
+```json
+{
+  "goal": "cms_starter",
+  "limit": 5
+}
+```
+
+Inspect the proposals, then apply them:
+
+```http
+POST /agent-runs/{agent_run_id}/apply
+```
+
+Applying an agent run registers dataset versions with `requires_human_review_before_download=true`.
+
+Current policy:
+
+- deterministic starter proposals only
+- allowlisted CMS domains
+- no automatic downloads
+- human review required before download
 
 ## API Shape
 

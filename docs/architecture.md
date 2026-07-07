@@ -29,6 +29,7 @@ Purpose:
 - Normalize raw files into canonical dataset versions
 - Track which dataset versions are eligible for training
 - Expose a dataset catalog API
+- Run bounded data-collection agents that propose dataset versions
 
 This service owns dataset lineage.
 
@@ -96,6 +97,18 @@ Rules:
 - Every normalized dataset gets a schema version.
 - Training runs reference immutable dataset versions.
 - If source data changes, create a new dataset version.
+
+## Agent Boundary
+
+Collection agents should produce auditable proposals, not untracked side effects.
+
+Rules:
+
+- Agent runs are persisted in `agent_runs`.
+- Proposals include rationale, source URL, and metadata.
+- Initial agents are deterministic and allowlist-based.
+- Automatic downloads stay disabled until source trust and file size policies are mature.
+- Applying an agent run registers dataset versions, but those versions still require review before download.
 
 ## Training Run Lifecycle
 

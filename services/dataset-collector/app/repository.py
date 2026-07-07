@@ -5,8 +5,8 @@ from uuid import uuid4
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models import DataSourceRecord, DatasetVersionRecord
-from healthcost_shared import DataSource, DatasetStatus, DatasetVersion
+from app.models import AgentRunRecord, DataSourceRecord, DatasetVersionRecord
+from healthcost_shared import AgentRun, AgentRunStatus, DataSource, DatasetStatus, DatasetVersion
 
 
 DEFAULT_SOURCES = [
@@ -61,6 +61,20 @@ def version_from_record(record: DatasetVersionRecord) -> DatasetVersion:
         row_count=record.row_count,
         created_at=record.created_at,
         metadata=record.metadata_json or {},
+    )
+
+
+def agent_run_from_record(record: AgentRunRecord) -> AgentRun:
+    return AgentRun(
+        id=record.id,
+        goal=record.goal,
+        status=AgentRunStatus(record.status),
+        policy=record.policy_json or {},
+        proposals=record.proposals_json or [],
+        created_dataset_version_ids=record.created_dataset_version_ids or [],
+        created_at=record.created_at,
+        applied_at=record.applied_at,
+        error=record.error,
     )
 
 
@@ -191,6 +205,53 @@ class DatasetCatalogRepository:
         session.commit()
         session.refresh(record)
         return version_from_record(record)
+
+    def create_agent_run(
+        self,
+        session: Session,
+        goal: str,
+        policy: dict[str, Any],
+        proposals: list[dict[str, Any]],
+    ) -> AgentRun:
+        record = AgentRunRecord(
+            id=f"agent_{uuid4().hex[:12]}",
+            goal=goal,
+            status=AgentRunStatus.PROPOSED.value,
+            policy_json=policy,
+            proposals_json=proposals,
+            created_dataset_version_ids=[],
+            created_at=datetime.now(timezone.utc),
+        )
+        session.add(record)
+        session.commit()
+        session.refresh(record)
+        return agent_run_from_record(record)
+
+    def list_agent_runs(self, session: Session) -> list[AgentRun]:
+        records = session.scalars(select(AgentRunRecord).order_by(AgentRunRecord.created_at.desc())).all()
+        return [agent_run_from_record(record) for record in records]
+
+    def get_agent_run(self, session: Session, agent_run_id: str) -> AgentRun:
+        record = session.get(AgentRunRecord, agent_run_id)
+        if record is None:
+            raise KeyError(f"Unknown agent_run_id: {agent_run_id}")
+        return agent_run_from_record(record)
+
+    def mark_agent_run_applied(
+        self,
+        session: Session,
+        agent_run_id: str,
+        created_dataset_version_ids: list[str],
+    ) -> AgentRun:
+        record = session.get(AgentRunRecord, agent_run_id)
+        if record is None:
+            raise KeyError(f"Unknown agent_run_id: {agent_run_id}")
+        record.status = AgentRunStatus.APPLIED.value
+        record.created_dataset_version_ids = created_dataset_version_ids
+        record.applied_at = datetime.now(timezone.utc)
+        session.commit()
+        session.refresh(record)
+        return agent_run_from_record(record)
 
 
 repository = DatasetCatalogRepository()

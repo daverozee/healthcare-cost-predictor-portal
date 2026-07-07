@@ -24,6 +24,12 @@ class TrainingRunStatus(StrEnum):
     PROMOTED = "promoted"
 
 
+class AgentRunStatus(StrEnum):
+    PROPOSED = "proposed"
+    APPLIED = "applied"
+    FAILED = "failed"
+
+
 class DataSource(BaseModel):
     id: str
     name: str
@@ -71,3 +77,15 @@ class ModelArtifact(BaseModel):
     metrics_uri: str | None = None
     is_active: bool = False
     created_at: datetime
+
+
+class AgentRun(BaseModel):
+    id: str
+    goal: str
+    status: AgentRunStatus
+    policy: dict[str, Any] = Field(default_factory=dict)
+    proposals: list[dict[str, Any]] = Field(default_factory=list)
+    created_dataset_version_ids: list[str] = Field(default_factory=list)
+    created_at: datetime
+    applied_at: datetime | None = None
+    error: str | None = None

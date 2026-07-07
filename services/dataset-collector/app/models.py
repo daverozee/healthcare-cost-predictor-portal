@@ -32,3 +32,16 @@ class DatasetVersionRecord(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     metadata_json: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
 
+
+class AgentRunRecord(Base):
+    __tablename__ = "agent_runs"
+
+    id: Mapped[str] = mapped_column(String(120), primary_key=True)
+    goal: Mapped[str] = mapped_column(String(300), nullable=False)
+    status: Mapped[str] = mapped_column(String(60), nullable=False, index=True)
+    policy_json: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    proposals_json: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+    created_dataset_version_ids: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    applied_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    error: Mapped[str | None] = mapped_column(Text)

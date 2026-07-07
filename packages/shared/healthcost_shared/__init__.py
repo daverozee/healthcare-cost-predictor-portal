@@ -1,4 +1,6 @@
 from healthcost_shared.contracts import (
+    AgentRun,
+    AgentRunStatus,
     DataSource,
     DatasetStatus,
     DatasetVersion,
@@ -8,6 +10,8 @@ from healthcost_shared.contracts import (
 )
 
 __all__ = [
+    "AgentRun",
+    "AgentRunStatus",
     "DataSource",
     "DatasetStatus",
     "DatasetVersion",
@@ -15,4 +19,3 @@ __all__ = [
     "TrainingRun",
     "TrainingRunStatus",
 ]
-

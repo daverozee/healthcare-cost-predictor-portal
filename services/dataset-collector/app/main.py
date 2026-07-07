@@ -4,10 +4,11 @@ from fastapi import Depends, FastAPI, HTTPException, Query
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
+from app.agent import collection_agent
 from app.db import get_session, get_session_factory, init_database
 from app.repository import repository
 from app.storage import download_url
-from healthcost_shared import DataSource, DatasetStatus, DatasetVersion
+from healthcost_shared import AgentRun, DataSource, DatasetStatus, DatasetVersion
 
 
 class RegisterDatasetVersionRequest(BaseModel):
@@ -30,6 +31,14 @@ class DownloadDatasetVersionRequest(BaseModel):
         description="Override download URL. If omitted, uses metadata.source_url.",
     )
     filename: str | None = Field(default=None, description="Optional stored filename.")
+
+
+class AgentRunRequest(BaseModel):
+    goal: str = Field(
+        default="cms_starter",
+        description="Collection goal. Current deterministic goals: cms_starter, starter, provider_cost_starter.",
+    )
+    limit: int = Field(default=5, ge=1, le=20)
 
 
 app = FastAPI(
@@ -137,5 +146,55 @@ def download_dataset_version(
 def mark_trainable(dataset_version_id: str, session: Session = Depends(get_session)):
     try:
         return repository.mark_trainable(session, dataset_version_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@app.post("/agent-runs", response_model=AgentRun)
+def create_agent_run(request: AgentRunRequest, session: Session = Depends(get_session)):
+    policy, proposals = collection_agent.propose(request.goal, limit=request.limit)
+    if not proposals:
+        raise HTTPException(status_code=404, detail=f"No proposals available for goal: {request.goal}")
+    return repository.create_agent_run(
+        session,
+        goal=request.goal,
+        policy=policy,
+        proposals=proposals,
+    )
+
+
+@app.get("/agent-runs", response_model=list[AgentRun])
+def agent_runs(session: Session = Depends(get_session)):
+    return repository.list_agent_runs(session)
+
+
+@app.get("/agent-runs/{agent_run_id}", response_model=AgentRun)
+def agent_run(agent_run_id: str, session: Session = Depends(get_session)):
+    try:
+        return repository.get_agent_run(session, agent_run_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@app.post("/agent-runs/{agent_run_id}/apply", response_model=AgentRun)
+def apply_agent_run(agent_run_id: str, session: Session = Depends(get_session)):
+    try:
+        run = repository.get_agent_run(session, agent_run_id)
+        created_ids = []
+        for proposal in run.proposals:
+            dataset = repository.register_version(
+                session,
+                source_id=proposal["source_id"],
+                name=proposal["name"],
+                source_url=proposal["source_url"],
+                metadata={
+                    **proposal.get("metadata", {}),
+                    "agent_run_id": agent_run_id,
+                    "agent_rationale": proposal.get("rationale"),
+                    "requires_human_review_before_download": True,
+                },
+            )
+            created_ids.append(dataset.id)
+        return repository.mark_agent_run_applied(session, agent_run_id, created_ids)
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
