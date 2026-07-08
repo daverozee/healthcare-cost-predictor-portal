@@ -63,8 +63,38 @@ Current policy:
 
 - deterministic starter proposals only
 - allowlisted CMS domains
-- no automatic downloads
-- human review required before download
+- no automatic downloads unless `/execute` is called with `download=true`
+- human review required before download by default
+
+Execute the agent run:
+
+```http
+POST /agent-runs/{agent_run_id}/execute
+```
+
+Register proposals and queue training only if trainable datasets already exist:
+
+```json
+{
+  "download": false,
+  "queue_training": true
+}
+```
+
+Download proposed datasets, mark them trainable, queue a trainer run, and start the trainer run:
+
+```json
+{
+  "download": true,
+  "queue_training": true,
+  "run_training_now": true,
+  "target": "log_allowed_amount",
+  "procedure_group": "cms_starter",
+  "max_download_bytes": 5000000000
+}
+```
+
+Large CMS files can take time and disk space. Use `max_download_bytes` when testing a new source.
 
 ## API Shape
 

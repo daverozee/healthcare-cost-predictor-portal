@@ -10,6 +10,7 @@ This repository starts with:
 - A long-term microservice architecture scaffold
 - A PostgreSQL-backed dataset collector service with raw download/checksum tracking
 - A bounded dataset-collection agent scaffold for audited CMS starter proposals
+- Agent execution that can download reviewed datasets and queue trainer runs
 - A PyTorch trainer service scaffold
 - A roadmap for replacing the placeholder with public price-transparency data and ML models
 

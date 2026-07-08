@@ -30,6 +30,7 @@ services:
     command: sh -c "pip install -r requirements.txt && uvicorn app.main:app --host 0.0.0.0 --port 8010"
     environment:
       DATABASE_URL: postgresql+psycopg://healthcost:healthcost@postgres:5432/healthcost
+      TRAINER_URL: http://trainer:8020
     ports:
       - "8010:8010"
     volumes:

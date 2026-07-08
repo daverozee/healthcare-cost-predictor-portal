@@ -45,15 +45,32 @@ def download_url(
     dataset_version_id: str,
     storage_dir: Path = DEFAULT_STORAGE_DIR,
     filename: str | None = None,
+    max_bytes: int | None = None,
 ) -> StoredDownload:
     storage_dir.mkdir(parents=True, exist_ok=True)
     destination_name = filename or safe_filename(url, f"{dataset_version_id}.bin")
     destination = storage_dir / f"{dataset_version_id}-{destination_name}"
     temporary = destination.with_suffix(destination.suffix + ".part")
 
-    request = Request(url, headers={"User-Agent": "healthcare-cost-predictor-collector/0.1"})
-    with urlopen(request, timeout=120) as response, temporary.open("wb") as output:
-        shutil.copyfileobj(response, output, length=CHUNK_SIZE)
+    try:
+        request = Request(url, headers={"User-Agent": "healthcare-cost-predictor-collector/0.1"})
+        with urlopen(request, timeout=120) as response, temporary.open("wb") as output:
+            content_length = response.headers.get("Content-Length")
+            if max_bytes is not None and content_length and int(content_length) > max_bytes:
+                raise ValueError(f"Download is larger than max_bytes: {content_length} > {max_bytes}")
+
+            byte_count = 0
+            while True:
+                chunk = response.read(CHUNK_SIZE)
+                if not chunk:
+                    break
+                byte_count += len(chunk)
+                if max_bytes is not None and byte_count > max_bytes:
+                    raise ValueError(f"Download exceeded max_bytes: {byte_count} > {max_bytes}")
+                output.write(chunk)
+    except Exception:
+        temporary.unlink(missing_ok=True)
+        raise
 
     checksum_sha256, byte_count = checksum_file(temporary)
     temporary.replace(destination)
@@ -64,4 +81,3 @@ def download_url(
         byte_count=byte_count,
         downloaded_at=datetime.now(timezone.utc),
     )
-

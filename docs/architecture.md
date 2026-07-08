@@ -109,6 +109,7 @@ Rules:
 - Initial agents are deterministic and allowlist-based.
 - Automatic downloads stay disabled until source trust and file size policies are mature.
 - Applying an agent run registers dataset versions, but those versions still require review before download.
+- Executing an agent run can download reviewed datasets, mark successful downloads trainable, and ask the trainer service to queue a run.
 
 ## Training Run Lifecycle
 

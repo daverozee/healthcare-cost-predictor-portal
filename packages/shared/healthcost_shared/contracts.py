@@ -27,6 +27,7 @@ class TrainingRunStatus(StrEnum):
 class AgentRunStatus(StrEnum):
     PROPOSED = "proposed"
     APPLIED = "applied"
+    EXECUTED = "executed"
     FAILED = "failed"
 
 

@@ -8,6 +8,7 @@ from app.agent import collection_agent
 from app.db import get_session, get_session_factory, init_database
 from app.repository import repository
 from app.storage import download_url
+from app.trainer_client import TrainerClient
 from healthcost_shared import AgentRun, DataSource, DatasetStatus, DatasetVersion
 
 
@@ -39,6 +40,33 @@ class AgentRunRequest(BaseModel):
         description="Collection goal. Current deterministic goals: cms_starter, starter, provider_cost_starter.",
     )
     limit: int = Field(default=5, ge=1, le=20)
+
+
+class ExecuteAgentRunRequest(BaseModel):
+    download: bool = Field(
+        default=False,
+        description="Download proposed datasets before queuing training. Can be large.",
+    )
+    max_download_bytes: int | None = Field(
+        default=None,
+        description="Optional per-file download size limit.",
+    )
+    queue_training: bool = True
+    run_training_now: bool = False
+    target: str = "log_allowed_amount"
+    procedure_group: str = "cms_starter"
+    model_family: str = "pytorch"
+    trainer_url: str | None = Field(
+        default=None,
+        description="Override trainer service URL. Defaults to TRAINER_URL env var or localhost.",
+    )
+
+
+class AgentExecutionResult(BaseModel):
+    agent_run: AgentRun
+    dataset_versions: list[DatasetVersion]
+    training_runs: list[dict] = Field(default_factory=list)
+    skipped_training_reason: str | None = None
 
 
 app = FastAPI(
@@ -176,25 +204,122 @@ def agent_run(agent_run_id: str, session: Session = Depends(get_session)):
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
+def _apply_agent_run_to_versions(run: AgentRun, session: Session) -> tuple[AgentRun, list[DatasetVersion]]:
+    if run.created_dataset_version_ids:
+        return run, [repository.get_version(session, dataset_id) for dataset_id in run.created_dataset_version_ids]
+
+    created_versions = []
+    for proposal in run.proposals:
+        dataset = repository.register_version(
+            session,
+            source_id=proposal["source_id"],
+            name=proposal["name"],
+            source_url=proposal["source_url"],
+            metadata={
+                **proposal.get("metadata", {}),
+                "agent_run_id": run.id,
+                "agent_rationale": proposal.get("rationale"),
+                "requires_human_review_before_download": True,
+            },
+        )
+        created_versions.append(dataset)
+
+    applied_run = repository.mark_agent_run_applied(
+        session,
+        run.id,
+        [dataset.id for dataset in created_versions],
+    )
+    return applied_run, created_versions
+
+
 @app.post("/agent-runs/{agent_run_id}/apply", response_model=AgentRun)
 def apply_agent_run(agent_run_id: str, session: Session = Depends(get_session)):
     try:
         run = repository.get_agent_run(session, agent_run_id)
-        created_ids = []
-        for proposal in run.proposals:
-            dataset = repository.register_version(
-                session,
-                source_id=proposal["source_id"],
-                name=proposal["name"],
-                source_url=proposal["source_url"],
-                metadata={
-                    **proposal.get("metadata", {}),
-                    "agent_run_id": agent_run_id,
-                    "agent_rationale": proposal.get("rationale"),
-                    "requires_human_review_before_download": True,
-                },
-            )
-            created_ids.append(dataset.id)
-        return repository.mark_agent_run_applied(session, agent_run_id, created_ids)
+        applied_run, _ = _apply_agent_run_to_versions(run, session)
+        return applied_run
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@app.post("/agent-runs/{agent_run_id}/execute", response_model=AgentExecutionResult)
+def execute_agent_run(
+    agent_run_id: str,
+    request: ExecuteAgentRunRequest,
+    session: Session = Depends(get_session),
+):
+    try:
+        run = repository.get_agent_run(session, agent_run_id)
+        run, datasets = _apply_agent_run_to_versions(run, session)
+
+        updated_datasets = []
+        for dataset in datasets:
+            current = repository.get_version(session, dataset.id)
+            if request.download and current.status not in {DatasetStatus.DOWNLOADED, DatasetStatus.TRAINABLE}:
+                source_url = current.metadata.get("source_url")
+                if not source_url:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Dataset {current.id} has no source_url.",
+                    )
+                repository.update_status(
+                    session,
+                    current.id,
+                    DatasetStatus.DOWNLOADING,
+                    {"download_started_at": datetime.now(timezone.utc).isoformat()},
+                )
+                stored = download_url(
+                    source_url,
+                    current.id,
+                    filename=f"{current.id}.csv",
+                    max_bytes=request.max_download_bytes,
+                )
+                current = repository.record_download(
+                    session,
+                    dataset_version_id=current.id,
+                    raw_uri=stored.uri,
+                    checksum_sha256=stored.checksum_sha256,
+                    byte_count=stored.byte_count,
+                    source_url=source_url,
+                    downloaded_at=stored.downloaded_at,
+                )
+            if current.status == DatasetStatus.DOWNLOADED:
+                current = repository.mark_trainable(session, current.id)
+            updated_datasets.append(current)
+
+        trainable_ids = [
+            dataset.id for dataset in updated_datasets if dataset.status == DatasetStatus.TRAINABLE
+        ]
+        training_runs = []
+        skipped_training_reason = None
+        if request.queue_training and trainable_ids:
+            client = TrainerClient(request.trainer_url) if request.trainer_url else TrainerClient()
+            queued = client.queue_training_run(
+                target=request.target,
+                procedure_group=request.procedure_group,
+                dataset_version_ids=trainable_ids,
+                model_family=request.model_family,
+            )
+            training_runs.append(queued)
+            if request.run_training_now:
+                training_runs[-1] = client.run_training_now(queued["id"])
+            run = repository.mark_agent_run_executed(
+                session,
+                agent_run_id,
+                [training_run["id"] for training_run in training_runs],
+            )
+        elif request.queue_training:
+            skipped_training_reason = "No trainable dataset versions. Run with download=true or mark datasets trainable first."
+
+        return AgentExecutionResult(
+            agent_run=run,
+            dataset_versions=updated_datasets,
+            training_runs=training_runs,
+            skipped_training_reason=skipped_training_reason,
+        )
+    except HTTPException:
+        raise
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Agent execution failed: {exc}") from exc

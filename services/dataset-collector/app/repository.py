@@ -253,5 +253,24 @@ class DatasetCatalogRepository:
         session.refresh(record)
         return agent_run_from_record(record)
 
+    def mark_agent_run_executed(
+        self,
+        session: Session,
+        agent_run_id: str,
+        training_run_ids: list[str],
+    ) -> AgentRun:
+        record = session.get(AgentRunRecord, agent_run_id)
+        if record is None:
+            raise KeyError(f"Unknown agent_run_id: {agent_run_id}")
+        record.status = AgentRunStatus.EXECUTED.value
+        record.policy_json = {
+            **(record.policy_json or {}),
+            "training_run_ids": training_run_ids,
+            "executed_at": datetime.now(timezone.utc).isoformat(),
+        }
+        session.commit()
+        session.refresh(record)
+        return agent_run_from_record(record)
+
 
 repository = DatasetCatalogRepository()
