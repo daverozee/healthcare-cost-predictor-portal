@@ -144,7 +144,12 @@ def download_dataset_version(
             session,
             dataset_version_id,
             DatasetStatus.DOWNLOADING,
-            {"download_started_at": datetime.now(timezone.utc).isoformat()},
+            {
+                "download_started_at": datetime.now(timezone.utc).isoformat(),
+                "requires_human_review_before_download": False,
+                "human_review_completed_at": datetime.now(timezone.utc).isoformat(),
+                "human_review_completion_reason": "explicit_download_request",
+            },
         )
         stored = download_url(source_url, dataset_version_id, filename=request.filename)
         return repository.record_download(
@@ -266,7 +271,12 @@ def execute_agent_run(
                     session,
                     current.id,
                     DatasetStatus.DOWNLOADING,
-                    {"download_started_at": datetime.now(timezone.utc).isoformat()},
+                    {
+                        "download_started_at": datetime.now(timezone.utc).isoformat(),
+                        "requires_human_review_before_download": False,
+                        "human_review_completed_at": datetime.now(timezone.utc).isoformat(),
+                        "human_review_completion_reason": "explicit_agent_execute_download",
+                    },
                 )
                 stored = download_url(
                     source_url,

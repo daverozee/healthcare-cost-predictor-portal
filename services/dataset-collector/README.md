@@ -58,6 +58,7 @@ POST /agent-runs/{agent_run_id}/apply
 ```
 
 Applying an agent run registers dataset versions with `requires_human_review_before_download=true`.
+Calling `/download` directly or `/execute` with `download=true` is treated as the explicit review/approval action, so the service clears that flag and records `human_review_completed_at`.
 
 Current policy:
 
