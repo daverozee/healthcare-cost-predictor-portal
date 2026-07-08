@@ -10,6 +10,28 @@ from app.models import DatasetVersionRecord, ModelArtifactRecord, TrainingRunRec
 from healthcost_shared import ModelArtifact, TrainingRun, TrainingRunStatus
 
 
+def resolve_raw_uri(raw_uri: str) -> str:
+    path = Path(raw_uri)
+    if path.exists():
+        return str(path)
+
+    candidates = []
+    if not path.is_absolute():
+        candidates.extend(
+            [
+                Path("/app") / path,
+                Path("/app/services/dataset-collector") / path,
+                Path(os.getenv("DATASET_COLLECTOR_ROOT", "/app/services/dataset-collector")) / path,
+            ]
+        )
+
+    for candidate in candidates:
+        if candidate.exists():
+            return str(candidate)
+
+    return raw_uri
+
+
 def run_from_record(record: TrainingRunRecord) -> TrainingRun:
     return TrainingRun(
         id=record.id,
@@ -112,8 +134,10 @@ class TrainingRepository:
 
             selected_dataset = None
             for dataset in candidates:
-                if has_provider_payment_target(dataset.raw_uri):
+                resolved_raw_uri = resolve_raw_uri(dataset.raw_uri)
+                if has_provider_payment_target(resolved_raw_uri):
                     selected_dataset = dataset
+                    selected_dataset.raw_uri = resolved_raw_uri
                     break
             if selected_dataset is None:
                 raise ValueError(

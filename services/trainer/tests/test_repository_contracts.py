@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 
 from app.models import ModelArtifactRecord, TrainingRunRecord
-from app.repository import artifact_from_record, run_from_record
+from app.repository import artifact_from_record, resolve_raw_uri, run_from_record
 
 
 def test_training_run_record_round_trip():
@@ -44,3 +44,9 @@ def test_model_artifact_record_round_trip():
     assert artifact.is_active is True
     assert artifact.model_uri.endswith("model.pt")
 
+
+def test_resolve_raw_uri_returns_existing_path(tmp_path):
+    raw = tmp_path / "dataset.csv"
+    raw.write_text("a,b\n1,2\n", encoding="utf-8")
+
+    assert resolve_raw_uri(str(raw)) == str(raw)
