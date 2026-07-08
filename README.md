@@ -11,7 +11,7 @@ This repository starts with:
 - A PostgreSQL-backed dataset collector service with raw download/checksum tracking
 - A bounded dataset-collection agent scaffold for audited CMS starter proposals
 - Agent execution that can download reviewed datasets and queue trainer runs
-- A PyTorch trainer service scaffold
+- A PyTorch trainer service that can train the first CMS provider-payment model
 - A roadmap for replacing the placeholder with public price-transparency data and ML models
 
 The current estimator is not a production pricing model. It is a working product scaffold that lets us build the user experience, API contract, data pipeline, and evaluation workflow before connecting large CMS, hospital, and payer datasets.

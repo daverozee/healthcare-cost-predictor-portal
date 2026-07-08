@@ -1,10 +1,12 @@
 from datetime import datetime, timezone
+import os
+from pathlib import Path
 from uuid import uuid4
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models import ModelArtifactRecord, TrainingRunRecord
+from app.models import DatasetVersionRecord, ModelArtifactRecord, TrainingRunRecord
 from healthcost_shared import ModelArtifact, TrainingRun, TrainingRunStatus
 
 
@@ -80,31 +82,82 @@ class TrainingRepository:
 
         record.status = TrainingRunStatus.RUNNING.value
         record.started_at = datetime.now(timezone.utc)
+        record.error = None
         session.commit()
         session.refresh(record)
 
-        artifact = ModelArtifactRecord(
-            id=f"model_{uuid4().hex[:12]}",
-            training_run_id=run_id,
-            target=record.target,
-            procedure_group=record.procedure_group,
-            model_uri=f"models/{run_id}/model.pt",
-            preprocessor_uri=f"models/{run_id}/preprocessor.joblib",
-            metrics_uri=f"models/{run_id}/metrics.json",
-            created_at=datetime.now(timezone.utc),
-        )
-        record.metrics = {
-            "mae_log": 0.0,
-            "rmse_log": 0.0,
-            "r2_log": 0.0,
-        }
-        record.artifact_id = artifact.id
-        record.status = TrainingRunStatus.SUCCEEDED.value
-        record.finished_at = datetime.now(timezone.utc)
-        session.add(artifact)
-        session.commit()
-        session.refresh(record)
-        return run_from_record(record)
+        try:
+            from app.training.provider_payment import (
+                has_provider_payment_target,
+                train_provider_payment_model,
+                training_settings_from_env,
+            )
+
+            dataset_records = [
+                session.get(DatasetVersionRecord, dataset_id)
+                for dataset_id in record.dataset_version_ids
+            ]
+            dataset_records = [dataset for dataset in dataset_records if dataset is not None]
+            candidates = [
+                dataset
+                for dataset in dataset_records
+                if dataset.raw_uri and dataset.status in {"downloaded", "trainable"}
+            ]
+            candidates.sort(
+                key=lambda dataset: (
+                    (dataset.metadata_json or {}).get("grain") != "provider",
+                    dataset.created_at,
+                )
+            )
+
+            selected_dataset = None
+            for dataset in candidates:
+                if has_provider_payment_target(dataset.raw_uri):
+                    selected_dataset = dataset
+                    break
+            if selected_dataset is None:
+                raise ValueError(
+                    "No downloaded/trainable dataset version contains Tot_Mdcr_Pymt_Amt."
+                )
+
+            artifact_id = f"model_{uuid4().hex[:12]}"
+            artifact_dir = Path(os.getenv("MODEL_STORAGE_DIR", "models")) / run_id
+            result = train_provider_payment_model(
+                csv_path=selected_dataset.raw_uri,
+                output_dir=artifact_dir,
+                **training_settings_from_env(),
+            )
+            metrics = {
+                **result["metrics"],
+                "selected_dataset_version_id": selected_dataset.id,
+                "selected_dataset_raw_uri": selected_dataset.raw_uri,
+            }
+
+            artifact = ModelArtifactRecord(
+                id=artifact_id,
+                training_run_id=run_id,
+                target=record.target,
+                procedure_group=record.procedure_group,
+                model_uri=result["model_uri"],
+                preprocessor_uri=result["preprocessor_uri"],
+                metrics_uri=result["metrics_uri"],
+                created_at=datetime.now(timezone.utc),
+            )
+            record.metrics = metrics
+            record.artifact_id = artifact.id
+            record.status = TrainingRunStatus.SUCCEEDED.value
+            record.finished_at = datetime.now(timezone.utc)
+            session.add(artifact)
+            session.commit()
+            session.refresh(record)
+            return run_from_record(record)
+        except Exception as exc:
+            record.status = TrainingRunStatus.FAILED.value
+            record.finished_at = datetime.now(timezone.utc)
+            record.error = str(exc)
+            session.commit()
+            session.refresh(record)
+            return run_from_record(record)
 
     def list_artifacts(self, session: Session) -> list[ModelArtifact]:
         statement = select(ModelArtifactRecord).order_by(ModelArtifactRecord.created_at.desc())
@@ -129,4 +182,3 @@ class TrainingRepository:
 
 
 repository = TrainingRepository()
-

@@ -44,6 +44,7 @@ Purpose:
 - Save model artifacts and metrics
 - Register which dataset versions were used by each run
 - Promote a model candidate to active after evaluation
+- Execute the first PyTorch provider-payment training path for CMS datasets
 
 This service owns model lineage.
 

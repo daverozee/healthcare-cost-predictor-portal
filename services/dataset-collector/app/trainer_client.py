@@ -4,11 +4,13 @@ from urllib.request import Request, urlopen
 
 
 DEFAULT_TRAINER_URL = os.getenv("TRAINER_URL", "http://127.0.0.1:8020")
+DEFAULT_TRAINER_TIMEOUT_SECONDS = int(os.getenv("TRAINER_TIMEOUT_SECONDS", "3600"))
 
 
 class TrainerClient:
-    def __init__(self, base_url: str = DEFAULT_TRAINER_URL):
+    def __init__(self, base_url: str = DEFAULT_TRAINER_URL, timeout_seconds: int = DEFAULT_TRAINER_TIMEOUT_SECONDS):
         self.base_url = base_url.rstrip("/")
+        self.timeout_seconds = timeout_seconds
 
     def _post(self, path: str, payload: dict | None = None) -> dict:
         data = b"{}" if payload is None else json.dumps(payload).encode("utf-8")
@@ -18,7 +20,7 @@ class TrainerClient:
             headers={"Content-Type": "application/json"},
             method="POST",
         )
-        with urlopen(request, timeout=120) as response:
+        with urlopen(request, timeout=self.timeout_seconds) as response:
             return json.loads(response.read().decode("utf-8"))
 
     def queue_training_run(
@@ -43,4 +45,3 @@ class TrainerClient:
 
 
 trainer_client = TrainerClient()
-
